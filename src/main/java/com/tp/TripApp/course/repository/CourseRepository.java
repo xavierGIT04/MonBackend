@@ -1,5 +1,6 @@
 package com.tp.TripApp.course.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -24,22 +25,13 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
 
     // ─── Historiques ──────────────────────────────────────────────────────────
 
-    List<Course> findByPassagerOrderByDate_CommandeDesc(CompteUtilisateur passager);
+    @Query("SELECT c FROM Course c WHERE c.passager = :passager ORDER BY c.date_commande DESC")
+    List<Course> findByPassagerOrderByDateCommandeDesc(@Param("passager") CompteUtilisateur passager);
 
-    List<Course> findByConducteurOrderByDate_CommandeDesc(ProfilConducteur conducteur);
+    @Query("SELECT c FROM Course c WHERE c.conducteur = :conducteur ORDER BY c.date_commande DESC")
+    List<Course> findByConducteurOrderByDateCommandeDesc(@Param("conducteur") ProfilConducteur conducteur);
 
     // ─── PostGIS : courses EN_ATTENTE proches d'un conducteur ────────────────
-    /**
-     * Cherche les courses EN_ATTENTE dont le point de départ est
-     * dans un rayon de :rayonMetres mètres autour du conducteur.
-     *
-     * ST_DWithin(geography) = rayon exact sur la sphère (mètres)
-     * <-> = opérateur KNN pour le tri par proximité
-     *
-     * @param lng         longitude du conducteur
-     * @param lat         latitude du conducteur
-     * @param rayonMetres rayon de recherche (ex: 5000 = 5km)
-     */
     @Query(value = """
         SELECT c.*
         FROM courses c
@@ -60,11 +52,6 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     );
 
     // ─── PostGIS : distance entre deux points de la course ───────────────────
-    /**
-     * Calcule la distance réelle en km entre départ et destination
-     * directement via PostGIS (ST_Distance sur geography = mètres).
-     * Résultat divisé par 1000 pour avoir des km.
-     */
     @Query(value = """
         SELECT
             ST_Distance(
@@ -95,13 +82,61 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
     """)
     Long countCoursesTerminees(@Param("conducteur") ProfilConducteur conducteur);
 
+    // Hibernate 6 n'accepte pas CURRENT_DATE + 1 → on passe les bornes en paramètres
+    // Appeler avec : debutJour = LocalDateTime.now().toLocalDate().atStartOfDay()
+    //                finJour   = debutJour.plusDays(1)
     @Query("""
-    	    SELECT COALESCE(SUM(c.prixFinal), 0.0)
-    	    FROM Course c
-    	    WHERE c.conducteur = :conducteur
-    	      AND c.statut = 'TERMINEE'
-    	      AND c.dateFin >= CURRENT_DATE
-    	      AND c.dateFin < (CURRENT_DATE + 1)
-    	""")
-    Double gainsDuJour(@Param("conducteur") ProfilConducteur conducteur);
+        SELECT COALESCE(SUM(c.prix_final), 0.0)
+        FROM Course c
+        WHERE c.conducteur = :conducteur
+          AND c.statut = com.tp.TripApp.course.enums.StatutCourse.TERMINEE
+          AND c.date_fin >= :debutJour
+          AND c.date_fin < :finJour
+    """)
+    Double gainsDuJour(
+        @Param("conducteur") ProfilConducteur conducteur,
+        @Param("debutJour")  LocalDateTime debutJour,
+        @Param("finJour")    LocalDateTime finJour
+    );
+    
+    // ─── 1. Compter les courses par statut unique ─────────────────────────
+    @Query("SELECT COUNT(c) FROM Course c WHERE c.statut = :statut")
+    long countByStatut(@Param("statut") StatutCourse statut);
+
+// ─── 2. Compter les courses parmi une liste de statuts ───────────────
+    @Query("SELECT COUNT(c) FROM Course c WHERE c.statut IN :statuts")
+    long countByStatutIn(@Param("statuts") List<StatutCourse> statuts);
+
+// ─── 3. Courses terminées dans un intervalle (pour stats du jour) ────
+// Utilise date_fin (champ Java snake_case) — @Query obligatoire
+    @Query("""
+        SELECT COUNT(c) FROM Course c
+        WHERE c.statut = :statut
+          AND c.date_fin >= :debut
+          AND c.date_fin < :fin
+    """)
+    long countTermineesEntre(
+        @Param("statut") StatutCourse statut,
+        @Param("debut") LocalDateTime debut,
+        @Param("fin") LocalDateTime fin
+    );
+
+// ─── 4. Liste des courses actives (trafic live) ──────────────────────
+    @Query("SELECT c FROM Course c WHERE c.statut IN :statuts ORDER BY c.date_commande DESC")
+    List<Course> findByStatutIn(@Param("statuts") List<StatutCourse> statuts);
+
+// ─── 5. Somme des prix finaux du jour ────────────────────────────────
+// Utilise prix_final (snake_case) — @Query obligatoire
+    @Query("""
+        SELECT COALESCE(SUM(c.prix_final), 0.0) FROM Course c
+        WHERE c.statut = :statut
+          AND c.date_fin >= :debut
+          AND c.date_fin < :fin
+    """)
+    Double sumPrixFinalEntre(
+        @Param("statut") StatutCourse statut,
+        @Param("debut") LocalDateTime debut,
+        @Param("fin") LocalDateTime fin
+    );
+
 }

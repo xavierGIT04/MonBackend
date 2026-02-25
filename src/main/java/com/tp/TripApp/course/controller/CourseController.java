@@ -12,6 +12,7 @@ import com.tp.TripApp.course.service.CourseService;
 
 @RestController
 @RequestMapping("/api/v1/courses")
+@CrossOrigin(origins = "*")
 public class CourseController {
 
     private final CourseService courseService;

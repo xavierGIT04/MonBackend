@@ -1,5 +1,6 @@
 package com.tp.TripApp.course.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -195,7 +196,7 @@ public class CourseService {
     @Transactional(readOnly = true)
     public List<CourseResponse> getHistoriquePassager() {
         CompteUtilisateur passager = getUtilisateurConnecte();
-        return courseRepository.findByPassagerOrderByDate_CommandeDesc(passager)
+        return courseRepository.findByPassagerOrderByDateCommandeDesc(passager)
             .stream().map(CourseResponse::from).toList();
     }
 
@@ -293,11 +294,12 @@ public class CourseService {
         ProfilConducteur conducteur = user.getProfilConducteur();
 
         List<CourseResponse> historique = courseRepository
-            .findByConducteurOrderByDate_CommandeDesc(conducteur)
+            .findByConducteurOrderByDateCommandeDesc(conducteur)
             .stream().map(CourseResponse::from).toList();
 
-        Double gainsDuJour = courseRepository.gainsDuJour(conducteur);
-        Long totalCourses  = courseRepository.countCoursesTerminees(conducteur);
+        LocalDateTime debutJour = LocalDate.now().atStartOfDay();
+        LocalDateTime finJour   = debutJour.plusDays(1);
+        Double gainsDuJour = courseRepository.gainsDuJour(conducteur, debutJour, finJour);        Long totalCourses  = courseRepository.countCoursesTerminees(conducteur);
 
         return Map.of(
             "historique",    historique,
