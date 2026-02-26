@@ -159,6 +159,11 @@ public class CompteUtilisateur implements UserDetails {
 		return true;
 	}
 
+	@Override 
+	public boolean isAccountNonLocked(){ 
+		return true;  
+	}
+	
 	@Override
 	public String getUsername() {
 		return (login!=null) ? login: telephone;

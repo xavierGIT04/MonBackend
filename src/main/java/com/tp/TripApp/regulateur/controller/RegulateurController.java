@@ -18,7 +18,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/v1/regulateur")
-@PreAuthorize("hasRole('ROLE_REGULATEUR')")
+@PreAuthorize("hasRole('REGULATEUR')")
 @CrossOrigin(origins = "*") // à restreindre au domaine Angular en production
 public class RegulateurController {
 

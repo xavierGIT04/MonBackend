@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional; // ✅ Import ajouté
 
 import com.tp.TripApp.course.entity.LocalisationConducteur;
 import com.tp.TripApp.security.entity.ProfilConducteur;
@@ -17,14 +18,6 @@ public interface LocalisationConducteurRepository
     Optional<LocalisationConducteur> findByConducteur(ProfilConducteur conducteur);
 
     // ─── PostGIS : conducteurs actifs dans un rayon ───────────────────────────
-    /**
-     * ST_DWithin sur geography = distance en mètres sur la sphère terrestre.
-     * L'index spatial GiST accélère cette requête drastiquement.
-     *
-     * @param lng        longitude du passager
-     * @param lat        latitude du passager
-     * @param rayonMetres rayon de recherche en mètres (ex: 5000 = 5km)
-     */
     @Query(value = """
         SELECT l.*
         FROM localisations_conducteurs l
@@ -47,13 +40,6 @@ public interface LocalisationConducteurRepository
     );
 
     // ─── PostGIS : conducteur le plus proche pour appairage ───────────────────
-    /**
-     * Opérateur <-> = distance KNN (K-Nearest Neighbor) — utilise l'index GiST.
-     * Renvoie le conducteur libre le plus proche en 1 requête optimisée.
-     *
-     * @param lng longitude du départ de la course
-     * @param lat latitude du départ de la course
-     */
     @Query(value = """
         SELECT l.*
         FROM localisations_conducteurs l
@@ -76,12 +62,8 @@ public interface LocalisationConducteurRepository
     );
 
     // ─── Upsert atomique (INSERT ou UPDATE) ───────────────────────────────────
-    /**
-     * ON CONFLICT (conducteur_id) DO UPDATE :
-     * Si le conducteur existe déjà, on met à jour sa position.
-     * Sinon on insère. Évite les doublons.
-     */
     @Modifying
+    @Transactional // ✅ Ajout ici
     @Query(value = """
         INSERT INTO localisations_conducteurs (conducteur_id, position, derniere_maj)
         VALUES (

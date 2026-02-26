@@ -9,76 +9,52 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-
-
+import jakarta.persistence.Table;
 
 @Entity
+@Table(name = "refresh_token") // ✅ Nom explicite
 public class RefreshToken {
-		@Id
-	    @GeneratedValue(strategy = GenerationType.AUTO)
-	    private long id;
 
-	    @ManyToOne
-	    @JoinColumn(name = "user_id", referencedColumnName = "id")
-	    private CompteUtilisateur user;
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private long id;
 
-	    @Column(nullable = false, unique = true)
-	    private String token;
+    @ManyToOne
+    @JoinColumn(name = "user_id", referencedColumnName = "id", nullable = false)
+    private CompteUtilisateur user;
 
-	    @Column(nullable = false)
-	    private Instant expiryDate;
+    @Column(nullable = false, unique = true, length = 500)
+    private String token;
 
-	    public boolean revoked;
+    @Column(nullable = false)
+    private Instant expiryDate;
 
-		public long getId() {
-			return id;
-		}
+    @Column(nullable = false)
+    private boolean revoked = false;
 
-		public void setId(long id) {
-			this.id = id;
-		}
+    // ✅ Constructeur no-arg obligatoire pour JPA
+    public RefreshToken() {}
 
-		public CompteUtilisateur getUser() {
-			return user;
-		}
+    public RefreshToken(CompteUtilisateur user, String token, Instant expiryDate, boolean revoked) {
+        this.user = user;
+        this.token = token;
+        this.expiryDate = expiryDate;
+        this.revoked = revoked;
+    }
 
-		public void setUser(CompteUtilisateur user) {
-			this.user = user;
-		}
+    // ─── Getters & Setters ───────────────────────────────────────────────
+    public long getId() { return id; }
+    public void setId(long id) { this.id = id; }
 
-		public String getToken() {
-			return token;
-		}
+    public CompteUtilisateur getUser() { return user; }
+    public void setUser(CompteUtilisateur user) { this.user = user; }
 
-		public void setToken(String token) {
-			this.token = token;
-		}
+    public String getToken() { return token; }
+    public void setToken(String token) { this.token = token; }
 
-		public Instant getExpiryDate() {
-			return expiryDate;
-		}
+    public Instant getExpiryDate() { return expiryDate; }
+    public void setExpiryDate(Instant expiryDate) { this.expiryDate = expiryDate; }
 
-		public void setExpiryDate(Instant expiryDate) {
-			this.expiryDate = expiryDate;
-		}
-
-		public boolean isRevoked() {
-			return revoked;
-		}
-
-		public void setRevoked(boolean revoked) {
-			this.revoked = revoked;
-		}
-
-		public RefreshToken(CompteUtilisateur user, String token, Instant expiryDate, boolean revoked) {
-			super();
-			
-			this.user = user;
-			this.token = token;
-			this.expiryDate = expiryDate;
-			this.revoked = revoked;
-		}
-	    
-	    
-
+    public boolean isRevoked() { return revoked; }
+    public void setRevoked(boolean revoked) { this.revoked = revoked; }
 }
