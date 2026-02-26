@@ -42,16 +42,16 @@ public class AuthenticationController {
 
 	
 	@PostMapping("/demander-otp")
-    public ResponseEntity<Map<String, String>> demanderOtp(@RequestParam("telephone") String telephone) {
-        String code = otpService.genererEtEnvoyerCode(telephone);
-        
-        // On renvoie le code au mobile pour la pop-up de simulation de sms
-        return ResponseEntity.ok(Map.of(
-            "status", "CODE_SENT",
-            "code", code,
-            "message", "Le code de simulation est : " + code
-        ));
-    }
+	public ResponseEntity<Map<String, String>> demanderOtp(@RequestBody Map<String, String> body) {
+	    String telephone = body.get("telephone");
+	    String code = otpService.genererEtEnvoyerCode(telephone);
+	    
+	    return ResponseEntity.ok(Map.of(
+	        "status", "CODE_SENT",
+	        "code", code,
+	        "message", "Le code de simulation est : " + code
+	    ));
+	}
 	
 	@PostMapping("/verifier-otp")
 	public ResponseEntity<?> verifierOtp(@RequestBody OtpRequest request) {
