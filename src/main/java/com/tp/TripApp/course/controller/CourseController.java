@@ -55,7 +55,9 @@ public class CourseController {
     @GetMapping("/active")
     @PreAuthorize("hasRole('PASSAGER')")
     public ResponseEntity<CourseResponse> getCourseActivePassager() {
-        return ResponseEntity.ok(courseService.getCourseActivePassager());
+        CourseResponse course = courseService.getCourseActivePassager();
+        if (course == null) return ResponseEntity.noContent().build();
+        return ResponseEntity.ok(course);
     }
 
     /**

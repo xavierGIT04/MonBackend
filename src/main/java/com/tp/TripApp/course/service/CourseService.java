@@ -123,12 +123,11 @@ public class CourseService {
     @Transactional(readOnly = true)
     public CourseResponse getCourseActivePassager() {
         CompteUtilisateur passager = getUtilisateurConnecte();
-        Course course = courseRepository.findFirstByPassagerAndStatutIn(
+        return courseRepository.findFirstByPassagerAndStatutIn(
             passager,
             List.of(StatutCourse.EN_ATTENTE, StatutCourse.ACCEPTEE,
                     StatutCourse.EN_COURS, StatutCourse.ARRIVEE)
-        ).orElseThrow(() -> new EntityNotFoundException("Aucune course active"));
-        return CourseResponse.from(course);
+        ).map(CourseResponse::from).orElse(null);
     }
 
     /** Passager annule sa course */
