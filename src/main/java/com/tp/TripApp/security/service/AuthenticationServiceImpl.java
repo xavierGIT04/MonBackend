@@ -88,7 +88,6 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             conducteur.setImmatriculation(request.getImmatriculation());
             conducteur.setType_vehicule(request.getType_vehicule());
             conducteur.setEst_valide_par_admin(false);
-            // ❌ Ligne supprimée : conducteur.setStatut_service(Statut_Service.LIBRE);
             conducteur.setCompte(user);
             user.setProfilConducteur(conducteur);
 

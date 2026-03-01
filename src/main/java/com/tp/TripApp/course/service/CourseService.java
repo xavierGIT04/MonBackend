@@ -22,6 +22,8 @@ import com.tp.TripApp.course.utils.GeometryUtils;
 import com.tp.TripApp.security.entity.CompteUtilisateur;
 import com.tp.TripApp.security.entity.ProfilConducteur;
 import com.tp.TripApp.security.enums.Statut_Service;
+import com.tp.TripApp.notification.entity.TypeNotification;
+import com.tp.TripApp.notification.service.NotificationService;
 
 import jakarta.persistence.EntityNotFoundException;
 
@@ -35,10 +37,14 @@ public class CourseService {
     private final CourseRepository courseRepository;
     private final LocalisationConducteurRepository localisationRepository;
 
+    private final NotificationService notificationService;
+
     public CourseService(CourseRepository courseRepository,
-                         LocalisationConducteurRepository localisationRepository) {
+                         LocalisationConducteurRepository localisationRepository,
+                         NotificationService notificationService) {
         this.courseRepository = courseRepository;
         this.localisationRepository = localisationRepository;
+        this.notificationService = notificationService;
     }
 
     // ─── Utilitaire auth ──────────────────────────────────────────────────────
@@ -140,6 +146,16 @@ public class CourseService {
         course.setStatut(StatutCourse.ANNULEE);
         if (course.getConducteur() != null)
             course.getConducteur().setStatut_service(Statut_Service.LIBRE);
+        
+        if (course.getConducteur() != null) {
+            notificationService.creer(
+                course.getConducteur().getCompte(),
+                TypeNotification.COURSE_ANNULEE,
+                "Course annulée ❌",
+                "Le passager a annulé la course.",
+                course.getId()
+            );
+        }
 
         return CourseResponse.from(courseRepository.save(course));
     }
@@ -162,6 +178,26 @@ public class CourseService {
 
         if (course.getConducteur() != null)
             course.getConducteur().setStatut_service(Statut_Service.LIBRE);
+        
+        
+        // Notifier le conducteur
+        notificationService.creer(
+            course.getConducteur().getCompte(),
+            TypeNotification.PAIEMENT_CONFIRME,
+            "Paiement reçu ",
+            "Le paiement de " + course.getPrix_final().intValue() + " FCFA a été confirmé.",
+            course.getId()
+        );
+        // Notifier le passager
+        notificationService.creer(
+            course.getPassager(),
+            TypeNotification.COURSE_TERMINEE,
+            "Course terminée ",
+            "Merci d'avoir utilisé Zém & Taxi ! Paiement de "
+                + course.getPrix_final().intValue() + " FCFA confirmé.",
+            course.getId()
+        );
+        
 
         return CourseResponse.from(courseRepository.save(course));
     }
@@ -253,6 +289,15 @@ public class CourseService {
         course.setStatut(StatutCourse.ACCEPTEE);
         course.setDate_acceptation(LocalDateTime.now());
         conducteur.setStatut_service(Statut_Service.OCCUPE);
+        
+        notificationService.creer(
+                course.getPassager(),
+                TypeNotification.COURSE_ACCEPTEE,
+                "Conducteur trouvé ! ",
+                conducteur.getCompte().getPrenom() + " " + conducteur.getCompte().getNom()
+                    + " arrive vers vous.",
+                course.getId()
+            );
 
         return CourseResponse.from(courseRepository.save(course));
     }
@@ -263,6 +308,15 @@ public class CourseService {
             .orElseThrow(() -> new EntityNotFoundException("Course introuvable"));
         course.setStatut(StatutCourse.EN_COURS);
         course.setDate_debut(LocalDateTime.now());
+        
+        notificationService.creer(
+                course.getPassager(),
+                TypeNotification.COURSE_DEMARREE,
+                "Course démarrée ",
+                "Votre conducteur est en route vers votre destination.",
+                course.getId()
+            );
+        
         return CourseResponse.from(courseRepository.save(course));
     }
 
@@ -271,6 +325,15 @@ public class CourseService {
         Course course = courseRepository.findById(courseId)
             .orElseThrow(() -> new EntityNotFoundException("Course introuvable"));
         course.setStatut(StatutCourse.ARRIVEE);
+        
+        notificationService.creer(
+                course.getPassager(),
+                TypeNotification.COURSE_ARRIVEE,
+                "Arrivée à destination ",
+                "Vous êtes arrivé à destination. Veuillez confirmer le paiement.",
+                course.getId()
+            );
+        
         return CourseResponse.from(courseRepository.save(course));
     }
 
