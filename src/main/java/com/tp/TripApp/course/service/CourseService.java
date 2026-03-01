@@ -22,6 +22,7 @@ import com.tp.TripApp.course.utils.GeometryUtils;
 import com.tp.TripApp.security.entity.CompteUtilisateur;
 import com.tp.TripApp.security.entity.ProfilConducteur;
 import com.tp.TripApp.security.enums.Statut_Service;
+import com.tp.TripApp.security.enums.TypeVehicule;
 import com.tp.TripApp.notification.entity.TypeNotification;
 import com.tp.TripApp.notification.service.NotificationService;
 
@@ -111,6 +112,18 @@ public class CourseService {
         );
         course.setStatut(StatutCourse.EN_ATTENTE);
         course.setDate_commande(LocalDateTime.now());
+        
+        if (req.getType_vehicule() != null) {
+            try {
+                course.setType_vehicule_demande(
+                    TypeVehicule.valueOf(req.getType_vehicule())
+                );
+            } catch (IllegalArgumentException ignored) {
+                course.setType_vehicule_demande(TypeVehicule.ZEM);
+            }
+        } else {
+            course.setType_vehicule_demande(TypeVehicule.ZEM);
+        }
 
         Course saved = courseRepository.save(course);
 
@@ -256,28 +269,64 @@ public class CourseService {
         );
     }
 
-    /**
+     /**
      * Courses EN_ATTENTE proches du conducteur — requête PostGIS.
      * Rayon : 5 km.
+     *
+     *  vérifie que le conducteur est validé par le régulateur
+     *    AVANT de lui montrer des courses.
      */
     @Transactional(readOnly = true)
     public List<CourseResponse> getCoursesProches() {
         CompteUtilisateur user = getUtilisateurConnecte();
         ProfilConducteur conducteur = user.getProfilConducteur();
 
+        // ── Vérification validation admin ────────────────────────────────────
+        if (!Boolean.TRUE.equals(conducteur.getEst_valide_par_admin())) {
+            throw new IllegalStateException(
+                "Votre compte n'est pas encore validé par le régulateur. " +
+                "Vous ne pouvez pas recevoir de courses pour l'instant."
+            );
+        }
+
         LocalisationConducteur loc = localisationRepository
             .findByConducteur(conducteur)
-            .orElseThrow(() -> new EntityNotFoundException("Position non définie. Activez votre GPS."));
+            .orElseThrow(() -> new EntityNotFoundException(
+                "Position non définie. Activez votre GPS."));
+
+        // ── Filtrage par type de véhicule ────────────────────────────────────
+        // Si le conducteur a un type_vehicule défini, on filtre les courses
+        // correspondantes. Sinon on renvoie toutes les courses proches.
+        if (conducteur.getType_vehicule() != null) {
+            return courseRepository.findCoursesEnAttenteProchesParType(
+                loc.getLatitude(),
+                loc.getLongitude(),
+                RAYON_RECHERCHE_METRES,
+                conducteur.getType_vehicule().name()
+            ).stream().map(CourseResponse::from).toList();
+        }
 
         return courseRepository.findCoursesEnAttenteProches(
             loc.getLatitude(), loc.getLongitude(), RAYON_RECHERCHE_METRES
         ).stream().map(CourseResponse::from).toList();
     }
 
-    /** Conducteur accepte une course */
+    /**
+     * Conducteur accepte une course.
+     *
+     *   double vérification de la validation admin
+     *    au moment de l'acceptation.
+     */
     public CourseResponse accepterCourse(Long courseId) {
         CompteUtilisateur user = getUtilisateurConnecte();
         ProfilConducteur conducteur = user.getProfilConducteur();
+
+        // ── Vérification validation admin ────────────────────────────────────
+        if (!Boolean.TRUE.equals(conducteur.getEst_valide_par_admin())) {
+            throw new IllegalStateException(
+                "Votre compte n'est pas encore validé par le régulateur."
+            );
+        }
 
         Course course = courseRepository.findById(courseId)
             .orElseThrow(() -> new EntityNotFoundException("Course introuvable"));
@@ -289,18 +338,41 @@ public class CourseService {
         course.setStatut(StatutCourse.ACCEPTEE);
         course.setDate_acceptation(LocalDateTime.now());
         conducteur.setStatut_service(Statut_Service.OCCUPE);
-        
+
         notificationService.creer(
-                course.getPassager(),
-                TypeNotification.COURSE_ACCEPTEE,
-                "Conducteur trouvé ! ",
-                conducteur.getCompte().getPrenom() + " " + conducteur.getCompte().getNom()
-                    + " arrive vers vous.",
-                course.getId()
-            );
+            course.getPassager(),
+            TypeNotification.COURSE_ACCEPTEE,
+            "Conducteur trouvé ! ",
+            conducteur.getCompte().getPrenom() + " " + conducteur.getCompte().getNom()
+                + " arrive vers vous.",
+            course.getId()
+        );
 
         return CourseResponse.from(courseRepository.save(course));
     }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
     /** Conducteur démarre (passager à bord) */
     public CourseResponse demarrerCourse(Long courseId) {

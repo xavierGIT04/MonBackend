@@ -139,4 +139,25 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
         @Param("fin") LocalDateTime fin
     );
 
+    @Query(value = """
+            SELECT c.*
+            FROM courses c
+            WHERE c.statut = 'EN_ATTENTE'
+              AND c.type_vehicule_demande = CAST(:typeVehicule AS varchar)
+              AND ST_DWithin(
+                  c.depart_position::geography,
+                  ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
+                  :rayonMetres
+              )
+            ORDER BY
+                c.depart_position <-> ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
+            """,
+            nativeQuery = true)
+        List<Course> findCoursesEnAttenteProchesParType(
+            @Param("lat") double lat,
+            @Param("lng") double lng,
+            @Param("rayonMetres") double rayonMetres,
+            @Param("typeVehicule") String typeVehicule
+        );
+
 }

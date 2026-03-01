@@ -9,7 +9,10 @@ public class CommandeCourseRequest {
     private Double destination_lng;
     private String destination_adresse;
     private String mode_paiement; // ESPECES, TMONEY, MOOV_MONEY
+    private String type_vehicule; // "ZEM" ou "TAXI"
 
+    public String getType_vehicule() { return type_vehicule; }
+    public void setType_vehicule(String type_vehicule) { this.type_vehicule = type_vehicule; }
     public Double getDepart_lat() { return depart_lat; }
     public void setDepart_lat(Double depart_lat) { this.depart_lat = depart_lat; }
     public Double getDepart_lng() { return depart_lng; }

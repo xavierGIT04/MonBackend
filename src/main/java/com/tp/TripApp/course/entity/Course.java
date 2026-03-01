@@ -81,6 +81,10 @@ public class Course {
 
     // ─── Distance calculée par PostGIS ───────────────────────────────────────
     private Double distance_km;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "type_vehicule_demande")
+    private com.tp.TripApp.security.enums.TypeVehicule type_vehicule_demande;
 
     // ─── Getters & Setters ───────────────────────────────────────────────────
 
@@ -148,4 +152,11 @@ public class Course {
 
     public Double getDistance_km() { return distance_km; }
     public void setDistance_km(Double distance_km) { this.distance_km = distance_km; }
+    
+    public com.tp.TripApp.security.enums.TypeVehicule getType_vehicule_demande() {
+        return type_vehicule_demande;
+    }
+    public void setType_vehicule_demande(com.tp.TripApp.security.enums.TypeVehicule type_vehicule_demande) {
+        this.type_vehicule_demande = type_vehicule_demande;
+    }
 }
