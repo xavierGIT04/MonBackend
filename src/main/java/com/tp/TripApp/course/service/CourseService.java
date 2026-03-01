@@ -37,7 +37,6 @@ public class CourseService {
 
     private final CourseRepository courseRepository;
     private final LocalisationConducteurRepository localisationRepository;
-
     private final NotificationService notificationService;
 
     public CourseService(CourseRepository courseRepository,
@@ -57,11 +56,6 @@ public class CourseService {
 
     // ─── Estimation ──────────────────────────────────────────────────────────
 
-    /**
-     * Calcule distance et prix estimé AVANT commande.
-     * La distance est calculée côté Java (Haversine).
-     * PostGIS recalculera la distance réelle une fois la course créée.
-     */
     public Map<String, Object> estimerCourse(
             double dLat, double dLng, double aLat, double aLng) {
 
@@ -112,12 +106,10 @@ public class CourseService {
         );
         course.setStatut(StatutCourse.EN_ATTENTE);
         course.setDate_commande(LocalDateTime.now());
-        
+
         if (req.getType_vehicule() != null) {
             try {
-                course.setType_vehicule_demande(
-                    TypeVehicule.valueOf(req.getType_vehicule())
-                );
+                course.setType_vehicule_demande(TypeVehicule.valueOf(req.getType_vehicule()));
             } catch (IllegalArgumentException ignored) {
                 course.setType_vehicule_demande(TypeVehicule.ZEM);
             }
@@ -135,7 +127,56 @@ public class CourseService {
             saved = courseRepository.save(saved);
         }
 
+        // ── NOUVEAU : Notifier les conducteurs proches ────────────────────────
+        _notifierConducteursProches(saved, req.getDepart_lat(), req.getDepart_lng());
+
         return CourseResponse.from(saved);
+    }
+
+    /**
+     * Envoie une notification NOUVELLE_COURSE à tous les conducteurs
+     * validés, disponibles (LIBRE) et dans un rayon de 5 km du départ,
+     * en filtrant par type de véhicule si spécifié.
+     */
+    private void _notifierConducteursProches(Course course, double lat, double lng) {
+        try {
+            // Récupérer les conducteurs proches via PostGIS
+            List<LocalisationConducteur> conducteursPro = localisationRepository
+                .findConducteursActifsProches(lat, lng, RAYON_RECHERCHE_METRES);
+
+            String typeVehicule = course.getType_vehicule_demande() != null
+                ? course.getType_vehicule_demande().name() : null;
+
+            String prixStr = course.getPrix_estime() != null
+                ? course.getPrix_estime().intValue() + " FCFA" : "prix estimé";
+
+            String destAdresse = course.getDestination_adresse() != null
+                ? course.getDestination_adresse() : "destination";
+
+            for (LocalisationConducteur loc : conducteursPro) {
+                ProfilConducteur conducteur = loc.getConducteur();
+
+                // Filtrer par type de véhicule si la course en demande un
+                if (typeVehicule != null && conducteur.getType_vehicule() != null
+                        && !conducteur.getType_vehicule().name().equals(typeVehicule)) {
+                    continue;
+                }
+
+                // Ne notifier que les conducteurs validés et libres
+                if (!Boolean.TRUE.equals(conducteur.getEst_valide_par_admin())) continue;
+                if (conducteur.getStatut_service() != Statut_Service.LIBRE) continue;
+
+                notificationService.creer(
+                    conducteur.getCompte(),
+                    TypeNotification.NOUVELLE_COURSE,
+                    "Nouvelle course disponible ! 🔔",
+                    "Course vers " + destAdresse + " — " + prixStr,
+                    course.getId()
+                );
+            }
+        } catch (Exception e) {
+            // Ne pas bloquer la commande si la notification échoue
+        }
     }
 
     /** Course active du passager (polling) */
@@ -157,10 +198,8 @@ public class CourseService {
             throw new IllegalStateException("Impossible d'annuler une course terminée");
 
         course.setStatut(StatutCourse.ANNULEE);
-        if (course.getConducteur() != null)
-            course.getConducteur().setStatut_service(Statut_Service.LIBRE);
-        
         if (course.getConducteur() != null) {
+            course.getConducteur().setStatut_service(Statut_Service.LIBRE);
             notificationService.creer(
                 course.getConducteur().getCompte(),
                 TypeNotification.COURSE_ANNULEE,
@@ -191,9 +230,7 @@ public class CourseService {
 
         if (course.getConducteur() != null)
             course.getConducteur().setStatut_service(Statut_Service.LIBRE);
-        
-        
-        // Notifier le conducteur
+
         notificationService.creer(
             course.getConducteur().getCompte(),
             TypeNotification.PAIEMENT_CONFIRME,
@@ -201,7 +238,6 @@ public class CourseService {
             "Le paiement de " + course.getPrix_final().intValue() + " FCFA a été confirmé.",
             course.getId()
         );
-        // Notifier le passager
         notificationService.creer(
             course.getPassager(),
             TypeNotification.COURSE_TERMINEE,
@@ -210,7 +246,6 @@ public class CourseService {
                 + course.getPrix_final().intValue() + " FCFA confirmé.",
             course.getId()
         );
-        
 
         return CourseResponse.from(courseRepository.save(course));
     }
@@ -229,7 +264,6 @@ public class CourseService {
         course.setCommentaire(req.getCommentaire());
         courseRepository.save(course);
 
-        // Recalculer la note moyenne via la DB
         if (course.getConducteur() != null) {
             ProfilConducteur conducteur = course.getConducteur();
             Double moyenne = courseRepository.calculerNoteMoyenne(conducteur);
@@ -252,16 +286,11 @@ public class CourseService {
     //  PARCOURS CONDUCTEUR
     // ═══════════════════════════════════════════════════════════════════════
 
-    /**
-     * Conducteur met à jour sa position GPS.
-     * Utilise l'upsert PostGIS natif (INSERT ON CONFLICT UPDATE).
-     */
     public void mettreAJourLocalisation(LocalisationRequest req) {
         CompteUtilisateur user = getUtilisateurConnecte();
         ProfilConducteur conducteur = user.getProfilConducteur();
         if (conducteur == null) throw new IllegalStateException("Pas un conducteur");
 
-        // Upsert atomique via PostGIS
         localisationRepository.upsertLocalisation(
             conducteur.getId(),
             req.getLatitude(),
@@ -269,19 +298,11 @@ public class CourseService {
         );
     }
 
-     /**
-     * Courses EN_ATTENTE proches du conducteur — requête PostGIS.
-     * Rayon : 5 km.
-     *
-     *  vérifie que le conducteur est validé par le régulateur
-     *    AVANT de lui montrer des courses.
-     */
     @Transactional(readOnly = true)
     public List<CourseResponse> getCoursesProches() {
         CompteUtilisateur user = getUtilisateurConnecte();
         ProfilConducteur conducteur = user.getProfilConducteur();
 
-        // ── Vérification validation admin ────────────────────────────────────
         if (!Boolean.TRUE.equals(conducteur.getEst_valide_par_admin())) {
             throw new IllegalStateException(
                 "Votre compte n'est pas encore validé par le régulateur. " +
@@ -294,9 +315,6 @@ public class CourseService {
             .orElseThrow(() -> new EntityNotFoundException(
                 "Position non définie. Activez votre GPS."));
 
-        // ── Filtrage par type de véhicule ────────────────────────────────────
-        // Si le conducteur a un type_vehicule défini, on filtre les courses
-        // correspondantes. Sinon on renvoie toutes les courses proches.
         if (conducteur.getType_vehicule() != null) {
             return courseRepository.findCoursesEnAttenteProchesParType(
                 loc.getLatitude(),
@@ -311,17 +329,10 @@ public class CourseService {
         ).stream().map(CourseResponse::from).toList();
     }
 
-    /**
-     * Conducteur accepte une course.
-     *
-     *   double vérification de la validation admin
-     *    au moment de l'acceptation.
-     */
     public CourseResponse accepterCourse(Long courseId) {
         CompteUtilisateur user = getUtilisateurConnecte();
         ProfilConducteur conducteur = user.getProfilConducteur();
 
-        // ── Vérification validation admin ────────────────────────────────────
         if (!Boolean.TRUE.equals(conducteur.getEst_valide_par_admin())) {
             throw new IllegalStateException(
                 "Votre compte n'est pas encore validé par le régulateur."
@@ -351,65 +362,39 @@ public class CourseService {
         return CourseResponse.from(courseRepository.save(course));
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    /** Conducteur démarre (passager à bord) */
     public CourseResponse demarrerCourse(Long courseId) {
         Course course = courseRepository.findById(courseId)
             .orElseThrow(() -> new EntityNotFoundException("Course introuvable"));
         course.setStatut(StatutCourse.EN_COURS);
         course.setDate_debut(LocalDateTime.now());
-        
+
         notificationService.creer(
-                course.getPassager(),
-                TypeNotification.COURSE_DEMARREE,
-                "Course démarrée ",
-                "Votre conducteur est en route vers votre destination.",
-                course.getId()
-            );
-        
+            course.getPassager(),
+            TypeNotification.COURSE_DEMARREE,
+            "Course démarrée ",
+            "Votre conducteur est en route vers votre destination.",
+            course.getId()
+        );
+
         return CourseResponse.from(courseRepository.save(course));
     }
 
-    /** Conducteur signale l'arrivée → déclenche paiement côté passager */
     public CourseResponse signalerArrivee(Long courseId) {
         Course course = courseRepository.findById(courseId)
             .orElseThrow(() -> new EntityNotFoundException("Course introuvable"));
         course.setStatut(StatutCourse.ARRIVEE);
-        
+
         notificationService.creer(
-                course.getPassager(),
-                TypeNotification.COURSE_ARRIVEE,
-                "Arrivée à destination ",
-                "Vous êtes arrivé à destination. Veuillez confirmer le paiement.",
-                course.getId()
-            );
-        
+            course.getPassager(),
+            TypeNotification.COURSE_ARRIVEE,
+            "Arrivée à destination ",
+            "Vous êtes arrivé à destination. Veuillez confirmer le paiement.",
+            course.getId()
+        );
+
         return CourseResponse.from(courseRepository.save(course));
     }
 
-    /** Course active conducteur (polling) */
     @Transactional(readOnly = true)
     public CourseResponse getCourseActiveConducteur() {
         CompteUtilisateur user = getUtilisateurConnecte();
@@ -421,7 +406,6 @@ public class CourseService {
         return CourseResponse.from(course);
     }
 
-    /** Historique conducteur + stats du jour */
     @Transactional(readOnly = true)
     public Map<String, Object> getStatsConducteur() {
         CompteUtilisateur user = getUtilisateurConnecte();
@@ -433,7 +417,8 @@ public class CourseService {
 
         LocalDateTime debutJour = LocalDate.now().atStartOfDay();
         LocalDateTime finJour   = debutJour.plusDays(1);
-        Double gainsDuJour = courseRepository.gainsDuJour(conducteur, debutJour, finJour);        Long totalCourses  = courseRepository.countCoursesTerminees(conducteur);
+        Double gainsDuJour = courseRepository.gainsDuJour(conducteur, debutJour, finJour);
+        Long totalCourses  = courseRepository.countCoursesTerminees(conducteur);
 
         return Map.of(
             "historique",    historique,
@@ -442,15 +427,6 @@ public class CourseService {
         );
     }
 
-    // ═══════════════════════════════════════════════════════════════════════
-    //  CARTE PASSAGER — conducteurs actifs
-    // ═══════════════════════════════════════════════════════════════════════
-
-    /**
-     * Positions des conducteurs LIBRES dans un rayon de 10 km
-     * — utilisé pour afficher les marqueurs sur la carte passager.
-     * PostGIS + index GiST → requête très rapide.
-     */
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getConducteursActifs(double lat, double lng) {
         return localisationRepository
