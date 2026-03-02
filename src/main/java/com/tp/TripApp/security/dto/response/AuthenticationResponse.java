@@ -22,9 +22,12 @@ public class AuthenticationResponse {
 	    
 	    @JsonProperty("token_type")
 	    private String tokenType;
+	    
+	    @JsonProperty("type_vehicule")
+	    private String typeVehicule;
 
 		public AuthenticationResponse(UUID id, String username, List<? extends GrantedAuthority> roles, String accessToken,
-				String refreshToken, String tokenType) {
+				String refreshToken, String tokenType, String typeVehicule) {
 			super();
 			this.id = id;
 			this.username = username;
@@ -32,6 +35,7 @@ public class AuthenticationResponse {
 			this.accessToken = accessToken;
 			this.refreshToken = refreshToken;
 			this.tokenType = tokenType;
+			this.typeVehicule = typeVehicule;
 		}
 
 		public UUID getId() {
@@ -82,7 +86,8 @@ public class AuthenticationResponse {
 			this.tokenType = tokenType;
 		}
 	    
-		
+		public String getTypeVehicule() { return typeVehicule; }
+	    public void setTypeVehicule(String typeVehicule) { this.typeVehicule = typeVehicule; }
 	    
 	    
 }

@@ -159,5 +159,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
             @Param("rayonMetres") double rayonMetres,
             @Param("typeVehicule") String typeVehicule
         );
+    
+    
 
 }

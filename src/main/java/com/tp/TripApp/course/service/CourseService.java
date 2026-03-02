@@ -139,46 +139,47 @@ public class CourseService {
      * en filtrant par type de véhicule si spécifié.
      */
     private void _notifierConducteursProches(Course course, double lat, double lng) {
-        try {
-            // Récupérer les conducteurs proches via PostGIS
-            List<LocalisationConducteur> conducteursPro = localisationRepository
+    try {
+        String typeVehicule = course.getType_vehicule_demande() != null
+            ? course.getType_vehicule_demande().name() : null;
+
+        List<LocalisationConducteur> conducteursPro;
+
+        // Utiliser la requête filtrée par type si disponible
+        if (typeVehicule != null) {
+            conducteursPro = localisationRepository
+                .findConducteursActifsProchesParType(lat, lng, RAYON_RECHERCHE_METRES, typeVehicule);
+        } else {
+            conducteursPro = localisationRepository
                 .findConducteursActifsProches(lat, lng, RAYON_RECHERCHE_METRES);
-
-            String typeVehicule = course.getType_vehicule_demande() != null
-                ? course.getType_vehicule_demande().name() : null;
-
-            String prixStr = course.getPrix_estime() != null
-                ? course.getPrix_estime().intValue() + " FCFA" : "prix estimé";
-
-            String destAdresse = course.getDestination_adresse() != null
-                ? course.getDestination_adresse() : "destination";
-
-            for (LocalisationConducteur loc : conducteursPro) {
-                ProfilConducteur conducteur = loc.getConducteur();
-
-                // Filtrer par type de véhicule si la course en demande un
-                if (typeVehicule != null && conducteur.getType_vehicule() != null
-                        && !conducteur.getType_vehicule().name().equals(typeVehicule)) {
-                    continue;
-                }
-
-                // Ne notifier que les conducteurs validés et libres
-                if (!Boolean.TRUE.equals(conducteur.getEst_valide_par_admin())) continue;
-                if (conducteur.getStatut_service() != Statut_Service.LIBRE) continue;
-
-                notificationService.creer(
-                    conducteur.getCompte(),
-                    TypeNotification.NOUVELLE_COURSE,
-                    "Nouvelle course disponible ! 🔔",
-                    "Course vers " + destAdresse + " — " + prixStr,
-                    course.getId()
-                );
-            }
-        } catch (Exception e) {
-            // Ne pas bloquer la commande si la notification échoue
         }
-    }
 
+
+        String prixStr = course.getPrix_estime() != null
+            ? course.getPrix_estime().intValue() + " FCFA" : "prix estimé";
+        String destAdresse = course.getDestination_adresse() != null
+            ? course.getDestination_adresse() : "destination";
+
+        for (LocalisationConducteur loc : conducteursPro) {
+            ProfilConducteur conducteur = loc.getConducteur();
+            notificationService.creer(
+                conducteur.getCompte(),
+                TypeNotification.NOUVELLE_COURSE,
+                "Nouvelle course disponible ! 🔔",
+                "Course vers " + destAdresse + " — " + prixStr,
+                course.getId()
+            );
+           
+        }
+
+       
+
+    } catch (Exception e) {
+        System.err.println("Erreur notification conducteurs : " + e.getMessage());
+        e.printStackTrace();
+    }
+}
+    
     /** Course active du passager (polling) */
     @Transactional(readOnly = true)
     public CourseResponse getCourseActivePassager() {

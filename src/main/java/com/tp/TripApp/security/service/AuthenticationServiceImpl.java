@@ -105,13 +105,20 @@ public class AuthenticationServiceImpl implements AuthenticationService {
 
         List<? extends GrantedAuthority> roles = user.getAuthorities().stream().toList();
 
+        String typeVehicule = null;
+        if (user.getProfilConducteur() != null) {
+            ProfilConducteur c = user.getProfilConducteur();
+            typeVehicule = c.getType_vehicule() != null ? c.getType_vehicule().name() : null;
+        }
+        
         return new AuthenticationResponse(
-                user.getPublicId(),
+        		user.getPublicId(),
                 user.getUsername(),
                 roles,
                 jwt,
                 refreshToken.getToken(),
-                TokenType.BEARER.name());
+                TokenType.BEARER.name(),
+                typeVehicule);
     }
 
     @Override
@@ -126,12 +133,19 @@ public class AuthenticationServiceImpl implements AuthenticationService {
         var refreshToken = refreshTokenService.createRefreshToken(user.getId());
         List<? extends GrantedAuthority> roles = user.getAuthorities().stream().toList();
 
+        String typeVehicule = null;
+        if (user.getProfilConducteur() != null) {
+            ProfilConducteur c = user.getProfilConducteur();
+            typeVehicule = c.getType_vehicule() != null ? c.getType_vehicule().name() : null;
+        }
+        
         return new AuthenticationResponse(
-                user.getPublicId(),
+        		user.getPublicId(),
                 user.getUsername(),
                 roles,
                 jwt,
                 refreshToken.getToken(),
-                TokenType.BEARER.name());
+                TokenType.BEARER.name(),
+                typeVehicule);
     }
 }

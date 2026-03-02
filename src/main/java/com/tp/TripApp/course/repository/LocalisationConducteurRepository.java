@@ -81,4 +81,28 @@ public interface LocalisationConducteurRepository
         @Param("lat") double lat,
         @Param("lng") double lng
     );
+    
+    
+    @Query(value = """
+    	    SELECT l.*
+    	    FROM localisations_conducteurs l
+    	    JOIN profil_conducteur c ON l.conducteur_id = c.id
+    	    WHERE c.statut_service = 'LIBRE'
+    	      AND c.est_valide_par_admin = true
+    	      AND c.type_vehicule = CAST(:typeVehicule AS varchar)
+    	      AND ST_DWithin(
+    	          l.position::geography,
+    	          ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography,
+    	          :rayonMetres
+    	      )
+    	    ORDER BY
+    	        l.position <-> ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)
+    	    """,
+    	    nativeQuery = true)
+    	List<LocalisationConducteur> findConducteursActifsProchesParType(
+    	    @Param("lat") double lat,
+    	    @Param("lng") double lng,
+    	    @Param("rayonMetres") double rayonMetres,
+    	    @Param("typeVehicule") String typeVehicule
+    	);
 }
