@@ -79,7 +79,7 @@ public class SecurityConfiguration {
         //  liste d'origines explicites 
         // allowCredentials(true) est INCOMPATIBLE avec setAllowedOrigins("*")
         // → il faut lister les origines exactes OU mettre allowCredentials(false)
-        configuration.setAllowedOriginPatterns(List.of("*")); // ← utilise allowedOriginPatterns à la place
+        configuration.setAllowedOriginPatterns(List.of("https://regulateur.onrender.com")); // ← utilise allowedOriginPatterns à la place
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With"));
         configuration.setExposedHeaders(List.of("Authorization"));
