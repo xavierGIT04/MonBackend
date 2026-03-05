@@ -19,7 +19,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/regulateur")
 @PreAuthorize("hasRole('REGULATEUR')")
-@CrossOrigin(origins = "*") // à restreindre au domaine Angular en production
+@CrossOrigin(origins = "https://regulateur.onrender.com") // à restreindre au domaine Angular en production
 public class RegulateurController {
 
     private final RegulateurService service;
