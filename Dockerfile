@@ -12,6 +12,6 @@ COPY --from=build /app/target/*.jar app.jar
 # Optimisation de la mémoire pour éviter que Render ne coupe l'app (OOM)
 ENV JAVA_OPTS="-Xmx300m -Xss512k"
 
-EXPOSE 8080
+EXPOSE 8081
 
 ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
